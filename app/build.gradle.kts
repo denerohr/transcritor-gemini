@@ -57,6 +57,6 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("com.arthenica:ffmpeg-kit-audio:6.0")
+    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-audio:6.0.4")
     implementation("com.google.ai.client.generativeai:generativeai:0.2.2")
 }

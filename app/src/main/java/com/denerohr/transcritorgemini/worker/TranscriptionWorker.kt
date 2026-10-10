@@ -10,6 +10,7 @@ import com.arthenica.ffmpegkit.FFmpegKitConfig
 import com.denerohr.transcritorgemini.data.AppDatabase
 import com.denerohr.transcritorgemini.data.UserPreferences
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.RequestOptions
 import com.google.ai.client.generativeai.type.content
 import kotlinx.coroutines.flow.firstOrNull
 import java.io.File
@@ -57,7 +58,6 @@ class TranscriptionWorker(
             val audioBytes = outputFile.readBytes()
             outputFile.delete()
 
-            // Removido o modelo live problemático. Mantido apenas o transcribe base.
             val models = listOf("gemini-3.5-transcribe")
             var transcribedText: String? = null
             var lastError: String? = null
@@ -69,7 +69,12 @@ class TranscriptionWorker(
             }
 
             for (modelName in models) {
-                val generativeModel = GenerativeModel(modelName = modelName, apiKey = apiKey)
+                // Modificação aplicada: Inclusão do requestOptions para forçar a API v1beta
+                val generativeModel = GenerativeModel(
+                    modelName = modelName, 
+                    apiKey = apiKey,
+                    requestOptions = RequestOptions(apiVersion = "v1beta")
+                )
                 var success = false
                 
                 for (attempt in 1..3) {

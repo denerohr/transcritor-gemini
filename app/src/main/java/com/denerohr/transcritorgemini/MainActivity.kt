@@ -8,8 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -111,7 +114,8 @@ fun HistoryScreen(db: TranscriptionDao) {
             Text("Limpar Histórico")
         }
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn {
+        // reverseLayout = true inverte o sentido da lista (itens novos aparecem na base se a ordem não for alterada, ou inverte a direção de scroll)
+        LazyColumn(reverseLayout = true) {
             items(items) { item ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -136,19 +140,37 @@ fun SettingsScreen(prefs: UserPreferences) {
     val apiKey by prefs.apiKey.collectAsState(initial = "")
     val promptSummary by prefs.promptSummary.collectAsState(initial = "")
     val promptReview by prefs.promptReview.collectAsState(initial = "")
+    val transMode by prefs.transcriptionMode.collectAsState(initial = "SMART")
 
     var keyInput by remember(apiKey) { mutableStateOf(apiKey ?: "") }
     var summaryInput by remember(promptSummary) { mutableStateOf(promptSummary) }
     var reviewInput by remember(promptReview) { mutableStateOf(promptReview) }
+    var modeInput by remember(transMode) { mutableStateOf(transMode) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    val modes = listOf("SMART", "VERBATIM", "diarization_mode")
+
+    // Adicionado verticalScroll para rolagem de tela
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         OutlinedTextField(
             value = keyInput,
             onValueChange = { keyInput = it },
             label = { Text("Chave da API Gemini") },
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text("Modo de Transcrição", style = MaterialTheme.typography.titleMedium)
+        modes.forEach { mode ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = modeInput == mode,
+                    onClick = { modeInput = mode }
+                )
+                Text(text = mode, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = summaryInput,
             onValueChange = { summaryInput = it },
@@ -165,8 +187,7 @@ fun SettingsScreen(prefs: UserPreferences) {
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = {
             coroutineScope.launch {
-                prefs.saveApiKey(keyInput)
-                prefs.savePrompts(summaryInput, reviewInput)
+                prefs.saveSettings(keyInput, summaryInput, reviewInput, modeInput)
             }
         }) {
             Text("Guardar Configurações")

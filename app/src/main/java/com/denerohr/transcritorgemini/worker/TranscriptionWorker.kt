@@ -30,6 +30,7 @@ class TranscriptionWorker(
         val db = AppDatabase.getDatabase(applicationContext).transcriptionDao()
         val prefs = UserPreferences(applicationContext)
         val apiKey = prefs.apiKey.firstOrNull()
+        val transMode = prefs.transcriptionMode.firstOrNull() ?: "SMART"
         
         val item = db.getById(transcriptionId) ?: return Result.failure()
 
@@ -41,7 +42,6 @@ class TranscriptionWorker(
         db.update(item.copy(status = "PROCESSANDO"))
 
         try {
-            // 1. Extração de Áudio com FFmpeg (MP3, 64kbps, Mono)
             val uri = Uri.parse(mediaUriString)
             val safUrl = FFmpegKitConfig.getSafParameterForRead(applicationContext, uri)
             val outputFile = File(applicationContext.cacheDir, "audio_${transcriptionId}.mp3")
@@ -57,22 +57,27 @@ class TranscriptionWorker(
             val audioBytes = outputFile.readBytes()
             outputFile.delete()
 
-            // 2. Transcrição com modelos Gemini (Lógica de Retentativas e Prioridade)
-            val models = listOf("gemini-3.5-transcribe", "gemini-3.5-transcribe-live")
+            // Removido o modelo live problemático. Mantido apenas o transcribe base.
+            val models = listOf("gemini-3.5-transcribe")
             var transcribedText: String? = null
             var lastError: String? = null
+            
+            val instructionPrompt = when (transMode) {
+                "VERBATIM" -> "Transcreva o áudio em português ipsis litteris, preservando todas as hesitações, gagueiras e falsos começos, seguindo estritamente as palavras faladas."
+                "diarization_mode" -> "Transcreva o áudio em português identificando ativamente os oradores diferentes com marcadores (ex: Orador 1, Orador 2)."
+                else -> "Transcreva o áudio em português no modo SMART: limpe os vícios de linguagem, faça autocorreções lógicas e formate elementos complexos como listas e numerais."
+            }
 
             for (modelName in models) {
                 val generativeModel = GenerativeModel(modelName = modelName, apiKey = apiKey)
                 var success = false
                 
-                // 3 retentativas por modelo
                 for (attempt in 1..3) {
                     try {
                         val response = generativeModel.generateContent(
                             content {
                                 blob("audio/mp3", audioBytes)
-                                text("Transcreva o áudio em português de forma fiel e precisa.")
+                                text(instructionPrompt)
                             }
                         )
                         transcribedText = response.text
@@ -88,7 +93,6 @@ class TranscriptionWorker(
 
             if (transcribedText == null) {
                 db.update(item.copy(status = "ERRO", errorMessage = "Falha total após retentativas: $lastError"))
-                // O WorkManager pode ser configurado na UI para permitir nova tentativa manual
                 return Result.failure()
             }
 
